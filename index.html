@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Demostración de agenda online para centros podológicos: reserva de horas por la web y vista de agenda para el centro.">
+<meta property="og:title" content="Agenda online para centros podológicos (demo)">
+<meta property="og:description" content="Prueba reservar una hora como paciente y mira cómo llega la reserva al centro.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230e6b68'/%3E%3Crect x='14' y='18' width='36' height='32' rx='5' fill='none' stroke='white' stroke-width='4'/%3E%3Cpath d='M14 28h36M24 12v10M40 12v10' stroke='white' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
+<title>Agenda Podológica Demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Source+Sans+3:wght@400;600;700&display=swap">
+<style>
+/* Layout: a single booking column (steps stacked) with a sticky summary on wide screens; a second tab shows the center's day view. */
+:root {
+  --bg: #f3f6f6;
+  --surface: #ffffff;
+  --ink: #16302f;
+  --muted: #5a7170;
+  --line: #d6e1e0;
+  --accent: #0e6b68;
+  --accent-ink: #ffffff;
+  --accent-soft: #dcefed;
+  --busy: #e9eeee;
+  --busy-ink: #9aaead;
+  --warn: #8a5a00;
+  --warn-soft: #fbf0d9;
+  --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
+  --body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1918; --surface: #162322; --ink: #e3eeed; --muted: #9db3b1; --line: #2a3b3a;
+    --accent: #4fc2bb; --accent-ink: #062120; --accent-soft: #1d3735; --busy: #1c2a29; --busy-ink: #5d7472;
+    --warn: #f0c46b; --warn-soft: #33290f; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1918; --surface: #162322; --ink: #e3eeed; --muted: #9db3b1; --line: #2a3b3a;
+  --accent: #4fc2bb; --accent-ink: #062120; --accent-soft: #1d3735; --busy: #1c2a29; --busy-ink: #5d7472;
+  --warn: #f0c46b; --warn-soft: #33290f; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.5; }
+.wrap { max-width: 1080px; margin: 0 auto; padding-block: 20px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.demo-note { display: flex; gap: 10px; align-items: flex-start; background: var(--warn-soft); color: var(--warn); border-radius: 10px; padding: 10px 14px; font-size: 14px; }
+.demo-note b { white-space: nowrap; }
+header.top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 12px; margin-top: 20px; }
+.brand { font-family: var(--display); font-weight: 700; font-size: clamp(26px, 4vw, 36px); line-height: 1.1; text-wrap: balance; margin: 0; }
+.brand small { display: block; font-family: var(--body); font-weight: 400; font-size: 15px; color: var(--muted); margin-top: 6px; }
+.tabs { display: inline-flex; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 4px; gap: 4px; }
+.tabs button { border: 0; background: transparent; color: var(--muted); font: 600 14px var(--body); padding: 8px 14px; border-radius: 999px; cursor: pointer; }
+.tabs button[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); }
+.grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 24px; margin-top: 24px; align-items: start; }
+@media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+section.step { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 20px; display: grid; gap: 14px; }
+.steps { display: grid; gap: 16px; min-width: 0; }
+.step h2 { font-family: var(--display); font-weight: 500; font-size: 20px; margin: 0; display: flex; gap: 10px; align-items: baseline; }
+.step h2 .n { font-family: var(--body); font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.services { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.svc { text-align: left; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 12px; padding: 12px 14px; cursor: pointer; display: grid; gap: 4px; font: inherit; }
+.svc strong { font-weight: 600; }
+.svc .meta { display: flex; justify-content: space-between; color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
+.svc[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.pros { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 999px; padding: 7px 14px; font: 600 14px var(--body); cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.days { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
+.day { flex: 0 0 auto; width: 66px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 12px; padding: 8px 4px; text-align: center; cursor: pointer; font: inherit; display: grid; gap: 2px; }
+.day .dw { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.day .dn { font-family: var(--display); font-size: 22px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+.day .dm { font-size: 12px; color: var(--muted); }
+.day[disabled] { opacity: .45; cursor: not-allowed; }
+.day[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.day[aria-pressed="true"] .dw, .day[aria-pressed="true"] .dm { color: var(--accent-ink); }
+.slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 8px; }
+.slot { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 10px; padding: 8px 0; font: 600 15px var(--body); font-variant-numeric: tabular-nums; cursor: pointer; }
+.slot[disabled] { background: var(--busy); color: var(--busy-ink); border-color: transparent; text-decoration: line-through; cursor: not-allowed; }
+.slot[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.hint { color: var(--muted); font-size: 14px; margin: 0; }
+form .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+label { display: grid; gap: 4px; font-size: 14px; font-weight: 600; }
+input, textarea { font: 400 16px var(--body); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; width: 100%; }
+textarea { resize: vertical; min-height: 64px; }
+input:focus-visible, textarea:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.err { color: #b3261e; font-size: 14px; margin: 0; }
+:root[data-theme="dark"] .err { color: #ffb4ab; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .err { color: #ffb4ab; } }
+.primary { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 12px; padding: 12px 18px; font: 700 16px var(--body); cursor: pointer; width: 100%; }
+.primary[disabled] { opacity: .45; cursor: not-allowed; }
+aside.summary { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 16px); background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 20px; display: grid; gap: 12px; }
+@media (max-width: 860px) { aside.summary { position: static; } }
+.summary h3 { font-family: var(--display); font-weight: 500; font-size: 18px; margin: 0; }
+.summary dl { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 12px; font-size: 15px; }
+.summary dt { color: var(--muted); }
+.summary dd { margin: 0; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+.confirm { background: var(--accent-soft); border-radius: 14px; padding: 20px; display: grid; gap: 10px; }
+.confirm h2 { font-family: var(--display); margin: 0; font-size: 24px; }
+.confirm p { margin: 0; }
+.ghost { background: transparent; color: var(--accent); border: 1px solid var(--accent); border-radius: 12px; padding: 10px 16px; font: 600 15px var(--body); cursor: pointer; justify-self: start; }
+/* Center view */
+.agenda { margin-top: 24px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 20px; display: grid; gap: 16px; }
+.agenda-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: baseline; }
+.agenda-head h2 { font-family: var(--display); font-weight: 500; margin: 0; font-size: 22px; }
+.stats { display: flex; flex-wrap: wrap; gap: 18px; color: var(--muted); font-size: 14px; }
+.stats b { color: var(--ink); font-size: 18px; font-variant-numeric: tabular-nums; margin-right: 4px; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 15px; min-width: 560px; }
+th { text-align: left; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 700; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+td { padding: 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+td.t { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
+.pill { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+.pill.new { background: var(--warn-soft); color: var(--warn); }
+.pill.web { background: var(--accent); color: var(--accent-ink); }
+@media (prefers-reduced-motion: no-preference) { .confirm { animation: rise .35s ease-out both; } @keyframes rise { from { transform: translateY(6px); } to { transform: none; } } }
+</style>
+<style>
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; }
+[hidden] { display: none !important; }
+.credit { margin-top: 32px; color: var(--muted); font-size: 14px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="demo-note"><b>Demostración.</b> <span>Centro y datos de ejemplo. La versión real lleva su logo, sus servicios, sus precios, sus profesionales y sus horarios. Ninguna reserva de esta página se envía a nadie.</span></p>
+
+  <header class="top">
+    <h1 class="brand">Centro Podológico Ejemplo<small>Providencia · Lunes a viernes 09:00–19:00 · Sábado 09:00–15:00</small></h1>
+    <div class="tabs" role="tablist" aria-label="Vista">
+      <button role="tab" id="tab-paciente" aria-selected="true" aria-controls="view-paciente">Vista del paciente</button>
+      <button role="tab" id="tab-centro" aria-selected="false" aria-controls="view-centro">Vista del centro</button>
+    </div>
+  </header>
+
+  <div id="view-paciente" role="tabpanel" aria-labelledby="tab-paciente">
+    <div class="grid">
+      <div class="steps" id="steps">
+        <section class="step" aria-labelledby="h1">
+          <h2 id="h1"><span class="n">Paso 1</span>Elige la atención</h2>
+          <div class="services" id="services"></div>
+        </section>
+        <section class="step" aria-labelledby="h2">
+          <h2 id="h2"><span class="n">Paso 2</span>Elige profesional</h2>
+          <div class="pros" id="pros"></div>
+        </section>
+        <section class="step" aria-labelledby="h3">
+          <h2 id="h3"><span class="n">Paso 3</span>Elige día y hora</h2>
+          <div class="days" id="days" aria-label="Días disponibles"></div>
+          <div class="slots" id="slots"></div>
+          <p class="hint" id="slots-hint">Las horas tachadas ya están tomadas.</p>
+        </section>
+        <section class="step" aria-labelledby="h4">
+          <h2 id="h4"><span class="n">Paso 4</span>Tus datos</h2>
+          <form id="form" novalidate>
+            <div class="fields">
+              <label for="f-name">Nombre y apellido<input id="f-name" autocomplete="name" placeholder="Ej: Carmen Rojas"></label>
+              <label for="f-phone">Teléfono (WhatsApp)<input id="f-phone" inputmode="tel" autocomplete="tel" placeholder="+56 9 1234 5678"></label>
+              <label for="f-mail">Correo<input id="f-mail" type="email" autocomplete="email" placeholder="carmen@correo.cl"></label>
+              <label for="f-note">Comentario para el podólogo (opcional)<textarea id="f-note" placeholder="Ej: uña del dedo gordo inflamada hace una semana"></textarea></label>
+            </div>
+            <p class="err" id="form-err" hidden></p>
+          </form>
+        </section>
+      </div>
+
+      <aside class="summary" aria-live="polite">
+        <h3>Tu reserva</h3>
+        <dl id="sum"></dl>
+        <button class="primary" id="book" disabled>Confirmar reserva</button>
+        <p class="hint">Recibirás un correo de confirmación y un recordatorio por WhatsApp 24 horas antes.</p>
+      </aside>
+    </div>
+  </div>
+
+  <div id="view-centro" role="tabpanel" aria-labelledby="tab-centro" hidden>
+    <div class="agenda">
+      <div class="agenda-head">
+        <h2 id="agenda-title">Agenda de hoy</h2>
+        <div class="stats" id="stats"></div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Hora</th><th>Paciente</th><th>Atención</th><th>Profesional</th><th>Origen</th></tr></thead>
+          <tbody id="agenda-body"></tbody>
+        </table>
+      </div>
+      <p class="hint">Así ve el centro cada día: las reservas hechas en la web llegan solas, sin responder mensajes. Las reservas que hagas en la vista del paciente aparecen aquí marcadas como "Web (nueva)".</p>
+    </div>
+  </div>
+  <p class="credit">Demo desarrollada por Tomás León · Ingeniería</p>
+</div>
+
+<script>
+(function () {
+  var SERVICES = [
+    { id: "clinica", name: "Podología clínica", min: 45, price: 22000, desc: "Corte y limado de uñas, durezas y callos" },
+    { id: "encarnada", name: "Uña encarnada", min: 45, price: 28000, desc: "Tratamiento conservador" },
+    { id: "diabetico", name: "Pie diabético", min: 60, price: 25000, desc: "Evaluación y control preventivo" },
+    { id: "hongos", name: "Onicomicosis (hongos)", min: 45, price: 24000, desc: "Diagnóstico y plan de tratamiento" },
+    { id: "deportiva", name: "Podología deportiva", min: 45, price: 26000, desc: "Ampollas, durezas, vendaje funcional" },
+    { id: "reflexo", name: "Reflexología y spa de pies", min: 60, price: 20000, desc: "Sesión de relajación" }
+  ];
+  var PROS = ["Cualquiera disponible", "Podóloga Daniela M.", "Podólogo Felipe R."];
+  var NAMES = ["María José P.", "Luis A.", "Ana Rosa T.", "Jorge C.", "Patricia V.", "Rodrigo S.", "Elena F.", "Tomás G.", "Claudia N.", "Héctor B."];
+  var DOW = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+  var MON = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+  var clp = function (n) { return "$" + n.toLocaleString("es-CL"); };
+  var pad = function (n) { return (n < 10 ? "0" : "") + n; };
+  var key = function (d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); };
+
+  var state = { svc: null, pro: 0, day: null, slot: null, booked: [] };
+  try { state.booked = JSON.parse(localStorage.getItem("demo-podo-booked") || "[]"); } catch (e) { state.booked = []; }
+  function saveBooked() { try { localStorage.setItem("demo-podo-booked", JSON.stringify(state.booked)); } catch (e) {} }
+
+  // Deterministic "already taken" slots per day so the demo looks lived-in.
+  function hash(s) { var h = 2166136261; for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+  function slotsFor(d) {
+    var dow = d.getDay(); if (dow === 0) return [];
+    var end = dow === 6 ? 15 : 19, out = [];
+    for (var h = 9; h < end; h++) { out.push(pad(h) + ":00"); if (h + 1 <= end) out.push(pad(h) + ":30"); }
+    return out.filter(function (t) { return t !== "13:00" && t !== "13:30"; });
+  }
+  function taken(d, t) {
+    if (state.booked.some(function (b) { return b.day === key(d) && b.time === t; })) return true;
+    var now = new Date();
+    if (key(d) === key(now)) { var p = t.split(":"); if (+p[0] * 60 + +p[1] <= now.getHours() * 60 + now.getMinutes() + 30) return true; }
+    return hash(key(d) + t) % 100 < 42;
+  }
+
+  var days = [];
+  (function () { var d = new Date(); d.setHours(0, 0, 0, 0); for (var i = 0; i < 14; i++) { var x = new Date(d); x.setDate(d.getDate() + i); days.push(x); } })();
+
+  function el(tag, attrs, html) { var e = document.createElement(tag); for (var k in attrs) e.setAttribute(k, attrs[k]); if (html != null) e.innerHTML = html; return e; }
+
+  function renderServices() {
+    var box = document.getElementById("services"); box.innerHTML = "";
+    SERVICES.forEach(function (s) {
+      var b = el("button", { type: "button", class: "svc", "aria-pressed": String(state.svc === s.id) },
+        "<strong>" + s.name + "</strong><span class='hint'>" + s.desc + "</span><span class='meta'><span>" + s.min + " min</span><span>" + clp(s.price) + "</span></span>");
+      b.onclick = function () { state.svc = s.id; renderAll(); };
+      box.appendChild(b);
+    });
+  }
+  function renderPros() {
+    var box = document.getElementById("pros"); box.innerHTML = "";
+    PROS.forEach(function (p, i) {
+      var b = el("button", { type: "button", class: "chip", "aria-pressed": String(state.pro === i) }, p);
+      b.onclick = function () { state.pro = i; renderAll(); };
+      box.appendChild(b);
+    });
+  }
+  function renderDays() {
+    var box = document.getElementById("days"); box.innerHTML = "";
+    if (!state.day) { var first = days.find(function (d) { return slotsFor(d).some(function (t) { return !taken(d, t); }); }); if (first) state.day = key(first); }
+    days.forEach(function (d) {
+      var free = slotsFor(d).filter(function (t) { return !taken(d, t); }).length;
+      var b = el("button", { type: "button", class: "day", "aria-pressed": String(state.day === key(d)) },
+        "<span class='dw'>" + DOW[d.getDay()] + "</span><span class='dn'>" + d.getDate() + "</span><span class='dm'>" + (free ? free + " libres" : "cerrado") + "</span>");
+      if (!free) b.disabled = true;
+      b.onclick = function () { state.day = key(d); state.slot = null; renderAll(); };
+      box.appendChild(b);
+    });
+  }
+  function curDay() { return days.find(function (d) { return key(d) === state.day; }); }
+  function renderSlots() {
+    var box = document.getElementById("slots"); box.innerHTML = "";
+    var d = curDay(); if (!d) return;
+    slotsFor(d).forEach(function (t) {
+      var b = el("button", { type: "button", class: "slot", "aria-pressed": String(state.slot === t) }, t);
+      if (taken(d, t)) { b.disabled = true; b.setAttribute("aria-label", t + " no disponible"); }
+      b.onclick = function () { state.slot = t; renderAll(); };
+      box.appendChild(b);
+    });
+  }
+  function svcObj() { return SERVICES.find(function (s) { return s.id === state.svc; }); }
+  function longDate(d) { return DOW[d.getDay()] + " " + d.getDate() + " de " + MON[d.getMonth()]; }
+  function renderSummary() {
+    var s = svcObj(), d = curDay();
+    var rows = [
+      ["Atención", s ? s.name : "—"],
+      ["Duración", s ? s.min + " min" : "—"],
+      ["Profesional", PROS[state.pro]],
+      ["Día", d ? longDate(d) : "—"],
+      ["Hora", state.slot || "—"],
+      ["Valor", s ? clp(s.price) : "—"]
+    ];
+    document.getElementById("sum").innerHTML = rows.map(function (r) { return "<dt>" + r[0] + "</dt><dd>" + r[1] + "</dd>"; }).join("");
+    document.getElementById("book").disabled = !(s && d && state.slot);
+  }
+  function renderAll() { renderServices(); renderPros(); renderDays(); renderSlots(); renderSummary(); renderAgenda(); }
+
+  document.getElementById("book").onclick = function () {
+    var name = document.getElementById("f-name").value.trim();
+    var phone = document.getElementById("f-phone").value.trim();
+    var mail = document.getElementById("f-mail").value.trim();
+    var err = document.getElementById("form-err");
+    var problems = [];
+    if (name.length < 3) problems.push("tu nombre");
+    if (phone.replace(/\D/g, "").length < 8) problems.push("un teléfono válido");
+    if (!/^\S+@\S+\.\S+$/.test(mail)) problems.push("un correo válido");
+    if (problems.length) { err.textContent = "Para confirmar falta " + problems.join(", ") + "."; err.hidden = false; document.getElementById("f-name").focus(); return; }
+    err.hidden = true;
+    var s = svcObj(), d = curDay();
+    var pro = state.pro === 0 ? PROS[1 + (hash(state.day + state.slot) % 2)] : PROS[state.pro];
+    state.booked.push({ day: state.day, time: state.slot, name: name, svc: s.name, pro: pro });
+    saveBooked();
+    var steps = document.getElementById("steps");
+    steps.innerHTML = "";
+    var c = el("div", { class: "confirm", role: "status" },
+      "<h2>Reserva confirmada</h2><p><b>" + s.name + "</b> con " + pro + "</p><p>" + longDate(d) + " a las <b>" + state.slot + "</b> · " + s.min + " min · " + clp(s.price) + "</p>" +
+      "<p class='hint'>En la versión real, " + name.split(" ")[0] + " recibiría ahora un correo de confirmación y un recordatorio por WhatsApp el día anterior. Mira la pestaña \"Vista del centro\" para ver cómo llega la reserva.</p>");
+    var again = el("button", { type: "button", class: "ghost" }, "Hacer otra reserva");
+    again.onclick = function () { location.reload(); };
+    c.appendChild(again);
+    steps.appendChild(c);
+    state.slot = null;
+    renderSummary(); renderAgenda();
+    c.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  function renderAgenda() {
+    var today = days[0].getDay() === 0 ? days[1] : days[0];
+    document.getElementById("agenda-title").textContent = "Agenda del " + longDate(today);
+    var rows = [];
+    slotsFor(today).forEach(function (t) {
+      var mine = state.booked.find(function (b) { return b.day === key(today) && b.time === t; });
+      if (mine) { rows.push({ t: t, name: mine.name, svc: mine.svc, pro: mine.pro, src: "new" }); return; }
+      if (hash(key(today) + t) % 100 < 42) {
+        var h = hash(t + "x");
+        rows.push({ t: t, name: NAMES[h % NAMES.length], svc: SERVICES[h % SERVICES.length].name, pro: PROS[1 + (h % 2)], src: h % 3 === 0 ? "wsp" : "web" });
+      }
+    });
+    var other = state.booked.filter(function (b) { return b.day !== key(today); });
+    var srcLabel = { web: "<span class='pill web'>Web</span>", wsp: "<span class='pill'>WhatsApp</span>", new: "<span class='pill new'>Web (nueva)</span>" };
+    var html = rows.map(function (r) {
+      return "<tr><td class='t'>" + r.t + "</td><td>" + r.name + "</td><td>" + r.svc + "</td><td>" + r.pro + "</td><td>" + srcLabel[r.src] + "</td></tr>";
+    }).join("");
+    other.forEach(function (b) {
+      var d = days.find(function (x) { return key(x) === b.day; });
+      html += "<tr><td class='t'>" + (d ? DOW[d.getDay()] + " " + d.getDate() + " · " : "") + b.time + "</td><td>" + b.name + "</td><td>" + b.svc + "</td><td>" + b.pro + "</td><td>" + srcLabel.new + "</td></tr>";
+    });
+    document.getElementById("agenda-body").innerHTML = html || "<tr><td colspan='5'>Sin reservas para hoy.</td></tr>";
+    var web = rows.filter(function (r) { return r.src !== "wsp"; }).length;
+    document.getElementById("stats").innerHTML = "<span><b>" + rows.length + "</b>atenciones</span><span><b>" + web + "</b>reservadas por la web</span><span><b>" + (slotsFor(today).length - rows.length) + "</b>horas libres</span>";
+  }
+
+  var tabs = [["tab-paciente", "view-paciente"], ["tab-centro", "view-centro"]];
+  tabs.forEach(function (pair) {
+    document.getElementById(pair[0]).onclick = function () {
+      tabs.forEach(function (p) { var on = p[0] === pair[0]; document.getElementById(p[0]).setAttribute("aria-selected", String(on)); document.getElementById(p[1]).hidden = !on; });
+    };
+  });
+
+  state.svc = "encarnada";
+  renderAll();
+})();
+</script>
+</body>
+</html>
